@@ -145,3 +145,7 @@ stats_*.json
 
 # custom slurm utils
 sbatch_scripts
+/.vlnce/
+__pycache__/
+.pytest_cache/
+.ruff_cache/

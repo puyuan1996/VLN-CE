@@ -1,3 +1,17 @@
 [tool.black]
 line-length = 79
 target-version = ['py36']
+
+[tool.ruff]
+target-version = "py37"
+line-length = 119
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"vlnce_runtime/launch.py" = ["E402"]
+"vlnce_runtime/worker.py" = ["E402"]
+
+[tool.pytest.ini_options]
+testpaths = ["vlnce_runtime/tests"]

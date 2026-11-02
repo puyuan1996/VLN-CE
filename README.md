@@ -15,6 +15,15 @@ Vision and Language Navigation in Continuous Environments (VLN-CE) is an instruc
 
 ## Setup
 
+### BetaEngine standalone adapter
+
+This adapted checkout adds an explicit JSONL runtime for R2R `val_unseen`.
+See [runtime architecture, configuration and validation](vlnce_runtime/README.md).
+It isolates the official Habitat 0.1.7 API from the optional Habitat-Sim 0.3.x
+compatibility port; the latter's `NavRLEnv` implementation is not present in the
+upstream baseline and must be supplied before use. The original training
+entrypoints below are unchanged.
+
 This project is developed with Python 3.6. If you are using [miniconda](https://docs.conda.io/en/latest/miniconda.html) or [anaconda](https://anaconda.org/), you can create an environment:
 
 ```bash
