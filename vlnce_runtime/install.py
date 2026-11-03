@@ -86,11 +86,16 @@ def main(argv=None):
             if not args.conda:
                 raise ValueError("Provide --conda /path/to/conda")
             run([args.conda, "create", "-y", "-p", prefix, "--override-channels", "-c", "aihabitat",
-                 "-c", "conda-forge", "python=3.6", "habitat-sim=0.1.7", "headless", "pip", "cmake<4"], args.dry_run)
+                 "-c", "conda-forge", "python=3.6", "habitat-sim=0.1.7", "headless", "libopengl", "pip", "cmake<4"], args.dry_run)
             managed = {"installed": False}
             if not args.dry_run:
                 save(receipt, managed)
         if managed is not None and not managed["installed"]:
+            if not args.dry_run and not (prefix / "lib/libOpenGL.so.0").exists():
+                if not args.conda:
+                    raise ValueError("Provide --conda /path/to/conda")
+                run([args.conda, "install", "-y", "-p", prefix, "--freeze-installed",
+                     "--override-channels", "-c", "conda-forge", "libopengl"])
             lab = base / "sources/habitat-lab-0.1.7"
             if not lab.exists():
                 run(["git", "clone", "--depth", "1", "--branch", "v0.1.7",
@@ -103,7 +108,8 @@ def main(argv=None):
             constraints = ROOT / "environments/habitat017-constraints.txt"
             # Extension imports reach baseline utilities (IL data and TensorBoard),
             # but do not require the upstream TensorFlow 1.x training stack.
-            run(pip + ["-c", constraints, "-r", lab / "requirements.txt", "lmdb", "webdataset", "tensorboard"],
+            run(pip + ["-c", constraints, "-r", lab / "requirements.txt",
+                       "lmdb", "webdataset", "tensorboard", "ifcfg", "networkx"],
                 args.dry_run, env=environment)
             run(pip + ["--no-deps", "-e", lab], args.dry_run, env=environment)
             run(pip + ["-c", constraints, "dtw==1.4.0", "fastdtw==0.3.4", "gdown==4.4.0"],
@@ -131,8 +137,9 @@ def main(argv=None):
                 if not args.dry_run:
                     archive.parent.mkdir(parents=True, exist_ok=True)
                 if not archive.exists():
-                    run([python, "-m", "gdown", "https://drive.google.com/uc?id=" + identifier,
-                         "-O", archive.with_suffix(".zip.part")], args.dry_run, env=environment)
+                    run([prefix / "bin/gdown", "https://drive.google.com/uc?id=" + identifier,
+                         "--continue", "-O", archive.with_suffix(".zip.part")],
+                        args.dry_run, env=environment, timeout=3600)
                     if not args.dry_run:
                         archive.with_suffix(".zip.part").replace(archive)
                 if not args.dry_run:

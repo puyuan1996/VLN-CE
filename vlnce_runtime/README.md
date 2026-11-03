@@ -68,3 +68,17 @@ python -m pytest -q vlnce_runtime/tests
 These are synthetic contract tests, not simulator acceptance. Also execute the
 launcher/close protocol under the configured minimum Python version and perform
 real reset, image hash, action, STOP and cleanup checks before publishing results.
+
+## Installation and native demonstrations
+
+With a modern bootstrap Python, `python vlnce_runtime/install.py --conda /path/to/conda`
+creates an isolated official 0.1.7 environment, downloads public R2R assets and writes
+`.vlnce/runtime.json`. Use `--dry-run` to inspect commands, `check` to inspect an existing
+runtime, and `--prefix`/`--data-root` to reuse local resources. Existing external prefixes
+are not upgraded. MP3D scene access follows the official dataset authorization process.
+
+`demo.py` runs under the configured simulator Python and collects a successful native
+ShortestPathFollower episode in a new output directory. It retains the original transitions
+and publishes `demo.json` only after confirmed success ending in STOP. This privileged
+oracle is a separate development command, never a worker tool or policy observation.
+BetaEngine can replay its actions in a fresh episode with identity checks and live images.
