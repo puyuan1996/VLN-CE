@@ -7,6 +7,13 @@
       "data_root": "/path/to/VLN-CE/data",
       "gpu_device_id": 0,
       "env": {}
+    },
+    "r2r_train": {
+      "backend": "habitat017",
+      "prefix": "/path/to/conda/envs/vlnce017",
+      "data_root": "/path/to/VLN-CE/data",
+      "gpu_device_id": 0,
+      "env": {}
     }
   }
 }

@@ -265,3 +265,35 @@ def test_ambiguous_dataset_layout_is_rejected(episode_files):
 def test_runtime_sources_parse_as_python36():
     for path in (ROOT / "vlnce_runtime").glob("*.py"):
         ast.parse(path.read_text(), filename=str(path), feature_version=(3, 6))
+
+
+def test_training_profile_keeps_legacy_unseen_profile(configured, tmp_path):
+    config, profile = configured
+    config.write_text(json.dumps({"version": 1, "environments": {"r2r_unseen": profile, "r2r_train": profile}}))
+    train, _ = load_profile(config, "r2r_train")
+    unseen, _ = load_profile(config)
+    assert train["eval_set"] == "train" and unseen["eval_set"] == "val_unseen"
+    result = subprocess.run(
+        [str(ROOT / "launch-worker.sh"), "--env", "r2r_train", "--work-dir", str(tmp_path),
+         "--runtime-config", str(config)], input='{"id":1,"method":"close","params":{}}\n',
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, timeout=10)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["ok"] is True
+
+
+def test_training_backend_reads_train_dataset(episode_files, tmp_path, monkeypatch):
+    profile, dataset, gt, _, payload = episode_files
+    train_dataset = dataset.parent.parent / "train/train.json.gz"
+    train_dataset.parent.mkdir()
+    train_dataset.write_bytes(dataset.read_bytes())
+    train_gt = gt.parent.parent / "train/train_gt.json.gz"
+    train_gt.parent.mkdir()
+    train_gt.write_bytes(gt.read_bytes())
+    profile["eval_set"] = "train"
+    monkeypatch.chdir(tmp_path)
+    backend = FixtureBackend(ROOT, profile, "configuration")
+    result = backend.reset({"vlnce_path": str(ROOT), "eval_set": "train", "task_index": 0, "resolution": 128})
+    assert result["state"]["eval_set"] == "train"
+    assert result["state"]["vlnce_episode_id"] == payload["episodes"][0]["episode_id"]
+    with pytest.raises(ValueError, match="profile"):
+        backend.reset({"vlnce_path": str(ROOT), "eval_set": "val_unseen", "task_index": 0, "resolution": 128})

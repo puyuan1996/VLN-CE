@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from vlnce_runtime.configuration import load_profile
 
 
-def serve(configuration, checksum):
+def serve(configuration, checksum, name="r2r_unseen"):
     protocol = os.fdopen(os.dup(sys.stdout.fileno()), "w", encoding="utf-8", buffering=1)
     os.dup2(sys.stderr.fileno(), sys.stdout.fileno())
     backend = None
@@ -32,7 +32,7 @@ def serve(configuration, checksum):
                 elif method == "reset":
                     if backend is not None:
                         backend.close()
-                    profile, verified = load_profile(configuration, expected_sha256=checksum)
+                    profile, verified = load_profile(configuration, name, expected_sha256=checksum)
                     module = importlib.import_module("vlnce_runtime." + profile["backend"])
                     backend_class = getattr(
                         module, "Habitat017Backend" if profile["backend"] == "habitat017" else "Habitat033Backend"
@@ -72,10 +72,11 @@ def serve(configuration, checksum):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--env", choices=("r2r_unseen", "r2r_train"), default="r2r_unseen")
     parser.add_argument("--runtime-config", required=True, type=Path)
     parser.add_argument("--runtime-sha256", required=True)
     args = parser.parse_args()
-    return serve(args.runtime_config, args.runtime_sha256)
+    return serve(args.runtime_config, args.runtime_sha256, args.env)
 
 
 if __name__ == "__main__":

@@ -10,8 +10,9 @@ import pytest
 from vlnce_runtime import demo
 
 
+@pytest.mark.parametrize("eval_set", ["train", "val_unseen"])
 @pytest.mark.parametrize("success", [True, False])
-def test_native_action_mapping_and_acceptance(tmp_path, monkeypatch, success):
+def test_native_action_mapping_and_acceptance(tmp_path, monkeypatch, success, eval_set):
     # Native STOP is 0; the public worker's STOP is 3.
     native_actions = SimpleNamespace(STOP=0, MOVE_FORWARD=1, TURN_LEFT=2, TURN_RIGHT=3)
     actions_module = ModuleType("habitat.sims.habitat_simulator.actions")
@@ -28,7 +29,7 @@ def test_native_action_mapping_and_acceptance(tmp_path, monkeypatch, success):
     follower_module.ShortestPathFollower = Follower
     monkeypatch.setitem(sys.modules, actions_module.__name__, actions_module)
     monkeypatch.setitem(sys.modules, follower_module.__name__, follower_module)
-    monkeypatch.setattr(demo, "load_profile", lambda config: ({"backend": "habitat017"}, "hash"))
+    monkeypatch.setattr(demo, "load_profile", lambda config, name: ({"backend": "habitat017", "eval_set": eval_set}, "hash"))
     calls = []
 
     class Backend:
@@ -38,6 +39,7 @@ def test_native_action_mapping_and_acceptance(tmp_path, monkeypatch, success):
             )
 
         def reset(self, params):
+            assert params["eval_set"] == eval_set
             return {"state": {"env_step": 0}}
 
         def step(self, action):
@@ -52,11 +54,11 @@ def test_native_action_mapping_and_acceptance(tmp_path, monkeypatch, success):
     before = Path.cwd()
     output = tmp_path / "oracle"
     if success:
-        path = demo.collect("runtime.json", output)
+        path = demo.collect("runtime.json", output, eval_set=eval_set)
         assert json.loads(path.read_text())["actions"] == [0, 1, 2, 3]
     else:
         with pytest.raises(RuntimeError, match="did not complete"):
-            demo.collect("runtime.json", output)
+            demo.collect("runtime.json", output, eval_set=eval_set)
         assert not (output / "demo.json").exists()
     assert len(json.loads((output / "transitions.json").read_text())) == 5
     assert calls == [0, 1, 2, 3, "close"]

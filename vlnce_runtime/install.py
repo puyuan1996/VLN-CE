@@ -35,13 +35,13 @@ def save(path, value):
     temporary.replace(path)
 
 
-def resource_check(data_root, task_index):
+def resource_check(data_root, task_index, eval_set="val_unseen"):
     sys.path.insert(0, str(ROOT))
     from vlnce_runtime.episode import dataset_paths, scene_path
-    data, gt = dataset_paths(str(data_root), "val_unseen")
+    data, gt = dataset_paths(str(data_root), eval_set)
     episodes = json.loads(gzip.decompress(data.read_bytes()).decode())["episodes"]
     if not 0 <= task_index < len(episodes):
-        raise ValueError("task-index outside val_unseen")
+        raise ValueError("task-index outside " + eval_set)
     scene = scene_path(episodes[task_index]["scene_id"], str(data_root))
     return {"episode_id": episodes[task_index]["episode_id"], "scene": str(scene),
             "dataset_sha256": hashlib.sha256(data.read_bytes()).hexdigest(),
@@ -55,13 +55,15 @@ def main(argv=None):
     parser.add_argument("--prefix", type=Path)
     parser.add_argument("--data-root", type=Path)
     parser.add_argument("--runtime-config", type=Path, default=ROOT / ".vlnce/runtime.json")
+    parser.add_argument("--eval-set", choices=("train", "val_unseen"), default="val_unseen")
     parser.add_argument("--task-index", type=int, default=0)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--skip-assets", action="store_true", help="Use already downloaded official R2R data")
     args = parser.parse_args(argv)
     configuration = args.runtime_config.expanduser().resolve()
     document = json.loads(configuration.read_text()) if configuration.is_file() else {"version": 1, "environments": {}}
-    profile = dict(document["environments"].get("r2r_unseen", {}))
+    profile_name = "r2r_train" if args.eval_set == "train" else "r2r_unseen"
+    profile = dict(document["environments"].get(profile_name, {}))
     base = configuration.parent
     prefix = (args.prefix or base / profile.get("prefix", "envs/habitat017")).expanduser().resolve()
     data = (args.data_root or base / profile.get("data_root", "data")).expanduser().resolve()
@@ -77,7 +79,7 @@ def main(argv=None):
         profile.update(backend="habitat017", prefix=str(prefix), data_root=str(data))
         profile.setdefault("gpu_device_id", 0)
         profile.setdefault("env", {})
-        document["environments"]["r2r_unseen"] = profile
+        document["environments"][profile_name] = profile
         save(configuration, document)
     if args.command == "install":
         if not python.exists():
@@ -153,7 +155,7 @@ def main(argv=None):
                     save(archive.with_suffix(".source.json"), {"url": identifier,
                          "sha256": hashlib.sha256(archive.read_bytes()).hexdigest()})
     if not args.dry_run:
-        print(json.dumps(resource_check(data, args.task_index), indent=2))
+        print(json.dumps(resource_check(data, args.task_index, args.eval_set), indent=2))
     print("Runtime:", configuration)
     print("MP3D scene assets require the official Matterport3D access process; reuse licensed data via --data-root.")
     return 0

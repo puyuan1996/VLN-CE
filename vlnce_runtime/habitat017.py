@@ -27,11 +27,11 @@ class Habitat017Backend(NavigationBackend):
         config = extension.get_extended_config(str(self.root / "habitat_extensions/config/vlnce_task.yaml"))
         config.defrost()
         config.ENVIRONMENT.MAX_EPISODE_STEPS = 500
-        config.DATASET.SPLIT = "val_unseen"
+        config.DATASET.SPLIT = self.profile.get("eval_set", "val_unseen")
         config.DATASET.DATA_PATH = str(dataset_path)
         config.DATASET.SCENES_DIR = self.profile["data_root"]
         config.DATASET.EPISODES_ALLOWED = [str(episode["episode_id"])]
-        config.TASK.NDTW.SPLIT = "val_unseen"
+        config.TASK.NDTW.SPLIT = self.profile.get("eval_set", "val_unseen")
         config.TASK.NDTW.GT_PATH = str(gt)
         config.TASK.SENSORS = ["INSTRUCTION_SENSOR"]
         config.SIMULATOR.HABITAT_SIM_V0.GPU_DEVICE_ID = self.profile["gpu_device_id"]

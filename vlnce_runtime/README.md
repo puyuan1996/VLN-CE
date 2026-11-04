@@ -82,3 +82,13 @@ ShortestPathFollower episode in a new output directory. It retains the original 
 and publishes `demo.json` only after confirmed success ending in STOP. This privileged
 oracle is a separate development command, never a worker tool or policy observation.
 BetaEngine can replay its actions in a fresh episode with identity checks and live images.
+
+## Training split
+
+`--env r2r_train` selects `environments.r2r_train` and accepts only `eval_set=train`.
+The existing `r2r_unseen` profile remains restricted to `val_unseen`. Both profiles
+use the same public actions and native STOP success rule. Configure them explicitly;
+no profile fallback is performed. `install.py` and `demo.py` accept `--eval-set train`.
+The example runtime JSON contains both profiles; they can share an interpreter and data root.
+Dataset and NDTW paths follow the selected split. Oracle sensors remain disabled for
+policy execution, and the separate demo command remains privileged.

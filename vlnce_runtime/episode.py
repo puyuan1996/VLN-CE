@@ -117,8 +117,8 @@ class NavigationBackend:
             raise ValueError("reset requires vlnce_path, eval_set, task_index and resolution")
         if Path(params["vlnce_path"]).resolve() != self.root:
             raise ValueError("reset vlnce_path differs from the launched checkout")
-        if params["eval_set"] != "val_unseen":
-            raise ValueError("r2r_unseen only supports val_unseen")
+        if params["eval_set"] != self.profile.get("eval_set", "val_unseen"):
+            raise ValueError("split differs from the explicitly launched runtime profile")
         index, resolution = params["task_index"], params["resolution"]
         if type(resolution) is not int or not 32 <= resolution <= 2048:
             raise ValueError("resolution must be an integer in [32, 2048]")

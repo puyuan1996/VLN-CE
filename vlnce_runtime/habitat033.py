@@ -26,7 +26,7 @@ class Habitat033Backend(NavigationBackend):
             "habitat_sim": version,
             "habitat_sim_module": simulator.__file__,
         }
-        os.environ["HABITAT033_DATASET_SPLIT"] = "val_unseen"
+        os.environ["HABITAT033_DATASET_SPLIT"] = self.profile.get("eval_set", "val_unseen")
         sys.path.insert(0, str(bridge.parents[1]))
         environment_class = importlib.import_module("common.nav_rl_env_habitat033").NavRLEnv
         config = {
@@ -34,7 +34,7 @@ class Habitat033Backend(NavigationBackend):
             "ENVIRONMENT": {"MAX_EPISODE_STEPS": 500},
             "TASK": {
                 "SUCCESS_DISTANCE": 3.0,
-                "NDTW": {"SPLIT": "val_unseen", "FDTW": True, "GT_PATH": str(gt), "SUCCESS_DISTANCE": 3.0},
+                "NDTW": {"SPLIT": self.profile.get("eval_set", "val_unseen"), "FDTW": True, "GT_PATH": str(gt), "SUCCESS_DISTANCE": 3.0},
             },
             "SIMULATOR": {
                 "SCENE": str(scene),
@@ -49,7 +49,7 @@ class Habitat033Backend(NavigationBackend):
             "RL": {"SLACK_REWARD": -0.05, "SUCCESS_REWARD": 2.5},
             "DATASET": {
                 "TYPE": "VLN-CE-v1",
-                "SPLIT": "val_unseen",
+                "SPLIT": self.profile.get("eval_set", "val_unseen"),
                 "DATA_PATH": str(dataset),
                 "EPISODES_ALLOWED": [str(episode["episode_id"])],
             },

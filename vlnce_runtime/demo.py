@@ -11,8 +11,8 @@ from vlnce_runtime.configuration import load_profile
 from vlnce_runtime.habitat017 import Habitat017Backend
 
 
-def collect(configuration, output, task_index=0, resolution=500):
-    profile, checksum = load_profile(configuration)
+def collect(configuration, output, task_index=0, resolution=500, eval_set="val_unseen"):
+    profile, checksum = load_profile(configuration, "r2r_train" if eval_set == "train" else "r2r_unseen")
     if profile["backend"] != "habitat017":
         raise ValueError("native oracle collection currently requires the explicit habitat017 backend")
     # Imports stay inside the simulator Python. No oracle tool is exposed to a policy.
@@ -27,7 +27,7 @@ def collect(configuration, output, task_index=0, resolution=500):
     actions, transitions = [], []
     try:
         os.chdir(str(output))
-        initial = backend.reset(dict(vlnce_path=str(root), eval_set="val_unseen",
+        initial = backend.reset(dict(vlnce_path=str(root), eval_set=eval_set,
                                      task_index=task_index, resolution=resolution))
         transitions.append(initial)
         follower = ShortestPathFollower(backend.native.sim, goal_radius=0.5, return_one_hot=False)
@@ -48,7 +48,7 @@ def collect(configuration, output, task_index=0, resolution=500):
         if not (final["state_known"] and final["task_success"] and final["terminated"] and actions[-1] == 3):
             raise RuntimeError("Native oracle did not complete this episode; retained evidence is not an accepted demo")
         result = dict(mode="demo", label="Habitat 原生最短路径专家（oracle）", teacher="Habitat ShortestPathFollower",
-                      task_index=task_index, eval_set="val_unseen", resolution=resolution,
+                      task_index=task_index, eval_set=eval_set, resolution=resolution,
                       actions=actions, task_success=True, initial=initial["state"], final=final)
         (output / "demo.json").write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n")
         return output / "demo.json"
@@ -66,7 +66,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime-config", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--eval-set", choices=("train", "val_unseen"), default="val_unseen")
     parser.add_argument("--task-index", type=int, default=0)
     parser.add_argument("--resolution", type=int, default=500)
     args = parser.parse_args()
-    print(collect(args.runtime_config, args.output, args.task_index, args.resolution))
+    print(collect(args.runtime_config, args.output, args.task_index, args.resolution, args.eval_set))
