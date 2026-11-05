@@ -1,4 +1,4 @@
-# Standalone R2R runtime
+# Standalone R2R / RxR runtime
 
 This directory adapts the upstream environment, not its trainers. `launch-worker.sh`
 selects an explicitly configured Python; `worker.py` serves JSONL; `episode.py`
@@ -92,3 +92,13 @@ no profile fallback is performed. `install.py` and `demo.py` accept `--eval-set 
 The example runtime JSON contains both profiles; they can share an interpreter and data root.
 Dataset and NDTW paths follow the selected split. Oracle sensors remain disabled for
 policy execution, and the separate demo command remains privileged.
+
+## RxR and scene splits
+
+Profiles are `{r2r,rxr}_{train,seen,unseen}`, fixing `train`, `val_seen`, or `val_unseen`. `install.py --dataset rxr` downloads the official `RxR_VLNCE_v0` archive and fills missing profiles, preserving other existing profiles. Both datasets may share an interpreter and scene directory.
+
+RxR reset additionally accepts `role` (`guide` or `follower`) and `languages` (`["*"]` or explicit en-US/en-IN/hi-IN/te-IN codes). The task index follows source order after language filtering. Native RxR dataset parsing receives its split config without eagerly loading every episode. BERT features and oracle sensors are not policy dependencies.
+
+RxR uses forward 0.25 m, left/right 30°, STOP, look up/down 30° at indices 0..5. Its native RGB camera uses 640×480, HFOV 79°; reset resolution sets width and preserves 4:3. Only RGB is published. Dataset paths are `RxR_VLNCE_v0/{split}/{split}_{role}.json.gz` with sibling `{split}_{role}_gt.json.gz`. `habitat033` has no verified RxR bridge and is rejected.
+
+Optional `expected_dataset_sha256` and `expected_reference_path_sha256` reset fields reject changed frozen inputs before creating a simulator. Selected episodes must have a native reference trajectory. Both datasets retain STOP success reward 0/1 and the 500-step limit. Test/challenge splits without local goals are deliberately excluded from scored training.

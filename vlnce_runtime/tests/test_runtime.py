@@ -11,6 +11,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+
 from vlnce_runtime.configuration import load_profile
 from vlnce_runtime.episode import NavigationBackend, dataset_paths
 from vlnce_runtime.habitat017 import Habitat017Backend
@@ -120,7 +121,7 @@ def episode_files(configured):
     ]
     payload = {"instruction_vocab": {"word_list": ["find"]}, "episodes": episodes}
     dataset.write_bytes(gzip.compress(json.dumps(payload).encode()))
-    gt.write_bytes(gzip.compress(b"{}"))
+    gt.write_bytes(gzip.compress(json.dumps({row["episode_id"]: {"locations": [[0, 0, 0], [1, 0, 0]]} for row in episodes}).encode()))
     profile["gpu_device_id"] = 0
     return profile, dataset, gt, scene, payload
 
@@ -297,3 +298,69 @@ def test_training_backend_reads_train_dataset(episode_files, tmp_path, monkeypat
     assert result["state"]["vlnce_episode_id"] == payload["episodes"][0]["episode_id"]
     with pytest.raises(ValueError, match="profile"):
         backend.reset({"vlnce_path": str(ROOT), "eval_set": "val_unseen", "task_index": 0, "resolution": 128})
+
+
+@pytest.mark.parametrize("role", ["guide", "follower"])
+def test_rxr_filters_language_maps_six_actions_and_binds_assets(episode_files, tmp_path, monkeypatch, role):
+    profile, _, _, _, payload = episode_files
+    profile["dataset"] = "rxr"
+    root = Path(profile["data_root"]) / "datasets/RxR_VLNCE_v0/val_unseen"
+    root.mkdir(parents=True)
+    for row, language in zip(payload["episodes"], ("en-US", "hi-IN")):
+        row["instruction"].update(language=language, instruction_id="instruction-" + row["episode_id"])
+        row["trajectory_id"] = "trajectory-" + row["episode_id"]
+    path = root / ("val_unseen_" + role + ".json.gz")
+    gt = root / ("val_unseen_" + role + "_gt.json.gz")
+    path.write_bytes(gzip.compress(json.dumps(payload).encode()))
+    gt.write_bytes(gzip.compress(json.dumps({row["episode_id"]: {"locations": [[0, 0, 0], [1, 0, 0]]}
+                                           for row in payload["episodes"]}).encode()))
+    monkeypatch.chdir(tmp_path)
+    backend = FixtureBackend(ROOT, profile, "configuration")
+    params = dict(vlnce_path=str(ROOT), eval_set="val_unseen", task_index=0, resolution=640,
+                  role=role, languages=["hi-IN"], expected_dataset_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+    initial = backend.reset(params)
+    assert initial["state"]["vlnce_episode_id"] == "7"
+    assert initial["state"]["role"] == role and initial["state"]["language"] == "hi-IN"
+    assert initial["state"]["reference_path_sha256"] == hashlib.sha256(gt.read_bytes()).hexdigest()
+    visible = json.loads(initial["observation"]["content"].splitlines()[0])
+    assert "30 degrees" in visible["available_actions"]["1"]
+    assert len(visible["available_actions"]) == 6
+    assert not {"position", "rotation", "distance_to_goal", "reference_path", "trajectory_id", "oracle_success"} & set(visible)
+    before, native = dict(backend.state), backend.native
+    for invalid in (True, 6, -1, 1.5):
+        with pytest.raises(ValueError):
+            backend.step(invalid)
+        assert backend.state == before
+    for invalid in ({"languages": ["fr"]}, {"role": "both"}, {"task_index": 99},
+                    {"expected_dataset_sha256": "0" * 64}):
+        with pytest.raises(ValueError):
+            backend.reset(dict(params, **invalid))
+        assert backend.state == before and backend.native is native
+    for action, expected in ((1, "TURN_LEFT"), (4, "LOOK_UP"), (5, "LOOK_DOWN"), (0, "MOVE_FORWARD")):
+        step = backend.step(action)
+        assert backend.last_action == expected and step["reward"] == 0
+    backend.success = True
+    stop = backend.step(3)
+    assert stop["reward"] == 1 and stop["state"]["terminated"] and not stop["state"]["truncated"]
+    backend.close()
+
+
+@pytest.mark.parametrize("name", ["rxr_train", "rxr_seen", "rxr_unseen"])
+def test_rxr_profile_launcher_without_simulator_import(configured, tmp_path, name):
+    config, profile = configured
+    config.write_text(json.dumps({"version": 1, "environments": {name: profile}}))
+    parsed, _ = load_profile(config, name)
+    assert parsed["dataset"] == "rxr"
+    result = subprocess.run(
+        [str(ROOT / "launch-worker.sh"), "--env", name, "--work-dir", str(tmp_path), "--runtime-config", str(config)],
+        input='{"id":1,"method":"close","params":{}}\n', stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        universal_newlines=True, timeout=10)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["ok"] is True
+
+
+@pytest.mark.parametrize("languages", [[], ["*", "en-US"], ["hi-IN", "hi-IN"], "en-US", [False]])
+def test_rxr_rejects_ambiguous_language_selection(languages):
+    from vlnce_runtime.episode import select_episodes
+    with pytest.raises(ValueError, match="languages"):
+        select_episodes({"episodes": [{"episode_id": "1"}]}, "rxr", languages)

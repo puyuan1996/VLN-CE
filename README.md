@@ -17,7 +17,7 @@ Vision and Language Navigation in Continuous Environments (VLN-CE) is an instruc
 
 ### BetaEngine standalone adapter
 
-This adapted checkout adds an explicit JSONL runtime for R2R `val_unseen`.
+This adapted checkout adds an explicit JSONL runtime for R2R and RxR `train`, `val_seen`, and `val_unseen`.
 See [runtime architecture, configuration and validation](vlnce_runtime/README.md).
 It isolates the official Habitat 0.1.7 API from the optional Habitat-Sim 0.3.x
 compatibility port; the latter's `NavRLEnv` implementation is not present in the

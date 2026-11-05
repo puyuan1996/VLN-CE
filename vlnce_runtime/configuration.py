@@ -5,6 +5,12 @@ import json
 import os
 from pathlib import Path
 
+PROFILES = {
+    dataset + "_" + suffix: (dataset, split)
+    for dataset in ("r2r", "rxr")
+    for suffix, split in (("train", "train"), ("seen", "val_seen"), ("unseen", "val_unseen"))
+}
+
 
 def load_profile(path, name="r2r_unseen", expected_sha256=None):
     """Validate one profile without importing simulator dependencies."""
@@ -27,10 +33,10 @@ def load_profile(path, name="r2r_unseen", expected_sha256=None):
         raise ValueError("unknown runtime profile fields: " + ", ".join(sorted(unknown)))
     if profile.get("backend") not in ("habitat017", "habitat033"):
         raise ValueError("backend must explicitly select habitat017 or habitat033")
-    if name not in {"r2r_unseen", "r2r_train"}:
-        raise ValueError("unknown R2R runtime profile")
+    if name not in PROFILES:
+        raise ValueError("unknown VLN-CE runtime profile")
     result = dict(profile)
-    result["eval_set"] = "train" if name == "r2r_train" else "val_unseen"
+    result["dataset"], result["eval_set"] = PROFILES[name]
     for key in ("prefix", "data_root"):
         value = result.get(key)
         if not isinstance(value, str) or not value:

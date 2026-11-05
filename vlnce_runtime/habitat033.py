@@ -9,6 +9,8 @@ from vlnce_runtime.episode import NavigationBackend
 
 class Habitat033Backend(NavigationBackend):
     def create_environment(self, episode, payload, dataset, gt, scene, resolution):
+        if self.dataset == "rxr":
+            raise ValueError("RxR requires habitat017; no verified habitat033 RxR adapter is supplied")
         bridge = self.root / "vlnce_baselines/common/nav_rl_env_habitat033.py"
         if not bridge.is_file():
             raise FileNotFoundError(

@@ -6,12 +6,12 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from vlnce_runtime.configuration import load_profile
+from vlnce_runtime.configuration import PROFILES, load_profile
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--env", required=True, choices=["r2r_unseen", "r2r_train"])
+    parser.add_argument("--env", required=True, choices=sorted(PROFILES))
     parser.add_argument("--work-dir", required=True, type=Path)
     parser.add_argument("--runtime-config", type=Path)
     args = parser.parse_args()

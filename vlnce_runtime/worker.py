@@ -9,7 +9,7 @@ import traceback
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from vlnce_runtime.configuration import load_profile
+from vlnce_runtime.configuration import PROFILES, load_profile
 
 
 def serve(configuration, checksum, name="r2r_unseen"):
@@ -72,7 +72,7 @@ def serve(configuration, checksum, name="r2r_unseen"):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--env", choices=("r2r_unseen", "r2r_train"), default="r2r_unseen")
+    parser.add_argument("--env", choices=sorted(PROFILES), default="r2r_unseen")
     parser.add_argument("--runtime-config", required=True, type=Path)
     parser.add_argument("--runtime-sha256", required=True)
     args = parser.parse_args()

@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ASSETS = {
     "R2R_VLNCE_v1-3": "1T9SjqZWyR2PCLSXYkFckfDeIs6Un0Rjm",
     "R2R_VLNCE_v1-3_preprocessed": "1fo8F4NKgZDH-bPSdVU3cONAkt5EW-tyr",
+    "RxR_VLNCE_v0": "145xzLjxBaNTbVgBfQ8e9EsBAV8W-SM0t",
 }
 
 
@@ -35,15 +36,16 @@ def save(path, value):
     temporary.replace(path)
 
 
-def resource_check(data_root, task_index, eval_set="val_unseen"):
+def resource_check(data_root, task_index, eval_set="val_unseen", dataset="r2r", role="guide", languages=None):
     sys.path.insert(0, str(ROOT))
-    from vlnce_runtime.episode import dataset_paths, scene_path
-    data, gt = dataset_paths(str(data_root), eval_set)
-    episodes = json.loads(gzip.decompress(data.read_bytes()).decode())["episodes"]
+    from vlnce_runtime.episode import dataset_paths, scene_path, select_episodes
+    data, gt = dataset_paths(str(data_root), eval_set, dataset, role)
+    episodes = select_episodes(json.loads(gzip.decompress(data.read_bytes()).decode()), dataset, languages)
     if not 0 <= task_index < len(episodes):
         raise ValueError("task-index outside " + eval_set)
     scene = scene_path(episodes[task_index]["scene_id"], str(data_root))
-    return {"episode_id": episodes[task_index]["episode_id"], "scene": str(scene),
+    return {"dataset": dataset, "split": eval_set, "role": role if dataset == "rxr" else None,
+            "selected_episodes": len(episodes), "episode_id": episodes[task_index]["episode_id"], "scene": str(scene),
             "dataset_sha256": hashlib.sha256(data.read_bytes()).hexdigest(),
             "reference_path_sha256": hashlib.sha256(gt.read_bytes()).hexdigest()}
 
@@ -55,14 +57,18 @@ def main(argv=None):
     parser.add_argument("--prefix", type=Path)
     parser.add_argument("--data-root", type=Path)
     parser.add_argument("--runtime-config", type=Path, default=ROOT / ".vlnce/runtime.json")
-    parser.add_argument("--eval-set", choices=("train", "val_unseen"), default="val_unseen")
+    parser.add_argument("--eval-set", choices=("train", "val_seen", "val_unseen"), default="val_unseen")
+    parser.add_argument("--dataset", choices=("r2r", "rxr"), default="r2r")
+    parser.add_argument("--role", choices=("guide", "follower"), default="guide")
+    parser.add_argument("--languages", nargs="+", default=["*"])
     parser.add_argument("--task-index", type=int, default=0)
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--skip-assets", action="store_true", help="Use already downloaded official R2R data")
+    parser.add_argument("--skip-assets", action="store_true", help="Use already downloaded official task data")
     args = parser.parse_args(argv)
     configuration = args.runtime_config.expanduser().resolve()
     document = json.loads(configuration.read_text()) if configuration.is_file() else {"version": 1, "environments": {}}
-    profile_name = "r2r_train" if args.eval_set == "train" else "r2r_unseen"
+    suffix = {"train": "train", "val_seen": "seen", "val_unseen": "unseen"}[args.eval_set]
+    profile_name = args.dataset + "_" + suffix
     profile = dict(document["environments"].get(profile_name, {}))
     base = configuration.parent
     prefix = (args.prefix or base / profile.get("prefix", "envs/habitat017")).expanduser().resolve()
@@ -80,6 +86,9 @@ def main(argv=None):
         profile.setdefault("gpu_device_id", 0)
         profile.setdefault("env", {})
         document["environments"][profile_name] = profile
+        for split in ("train", "seen", "unseen"):
+            # Fill missing profiles; never overwrite another explicit deployment.
+            document["environments"].setdefault(args.dataset + "_" + split, dict(profile))
         save(configuration, document)
     if args.command == "install":
         if not python.exists():
@@ -133,6 +142,8 @@ def main(argv=None):
     if args.command == "install":
         if not args.skip_assets:
             for name, identifier in ASSETS.items():
+                if name.startswith("RxR") != (args.dataset == "rxr"):
+                    continue
                 if (data / "datasets" / name).is_dir() or (data / name).is_dir():
                     continue
                 archive = data / "downloads" / (name + ".zip")
@@ -155,7 +166,8 @@ def main(argv=None):
                     save(archive.with_suffix(".source.json"), {"url": identifier,
                          "sha256": hashlib.sha256(archive.read_bytes()).hexdigest()})
     if not args.dry_run:
-        print(json.dumps(resource_check(data, args.task_index, args.eval_set), indent=2))
+        print(json.dumps(resource_check(data, args.task_index, args.eval_set, args.dataset,
+                                        args.role, args.languages), indent=2))
     print("Runtime:", configuration)
     print("MP3D scene assets require the official Matterport3D access process; reuse licensed data via --data-root.")
     return 0

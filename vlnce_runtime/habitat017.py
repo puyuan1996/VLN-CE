@@ -24,29 +24,40 @@ class Habitat017Backend(NavigationBackend):
         }
         sys.path.insert(0, str(self.root))
         extension = importlib.import_module("habitat_extensions")
-        config = extension.get_extended_config(str(self.root / "habitat_extensions/config/vlnce_task.yaml"))
+        filename = "rxr_vlnce_english_task.yaml" if self.dataset == "rxr" else "vlnce_task.yaml"
+        config = extension.get_extended_config(str(self.root / "habitat_extensions/config" / filename))
         config.defrost()
         config.ENVIRONMENT.MAX_EPISODE_STEPS = 500
         config.DATASET.SPLIT = self.profile.get("eval_set", "val_unseen")
         config.DATASET.DATA_PATH = str(dataset_path)
         config.DATASET.SCENES_DIR = self.profile["data_root"]
         config.DATASET.EPISODES_ALLOWED = [str(episode["episode_id"])]
+        if self.dataset == "rxr":
+            config.DATASET.ROLES = [self.selection["role"]]
+            config.DATASET.LANGUAGES = list(self.selection["languages"])
         config.TASK.NDTW.SPLIT = self.profile.get("eval_set", "val_unseen")
         config.TASK.NDTW.GT_PATH = str(gt)
         config.TASK.SENSORS = ["INSTRUCTION_SENSOR"]
+        config.TASK.INSTRUCTION_SENSOR_UUID = "instruction"
         config.SIMULATOR.HABITAT_SIM_V0.GPU_DEVICE_ID = self.profile["gpu_device_id"]
         for name in ("RGB_SENSOR", "DEPTH_SENSOR"):
             sensor = getattr(config.SIMULATOR, name)
-            sensor.HEIGHT = sensor.WIDTH = resolution
+            sensor.WIDTH = resolution
+            sensor.HEIGHT = resolution * 3 // 4 if self.dataset == "rxr" else resolution
         config.freeze()
         selected = dict(episode)
+        selected["episode_id"] = str(episode["episode_id"])
         selected["scene_id"] = str(scene)
         selected_payload = dict(payload)
         selected_payload["episodes"] = [selected]
         dataset = habitat.make_dataset(config.DATASET.TYPE)
+        if self.dataset == "rxr":
+            # RxR.from_json requires SPLIT even when loading only one episode.
+            # Passing config to the constructor would eagerly load the full split.
+            dataset.config = config.DATASET
         dataset.from_json(json.dumps(selected_payload))
         if len(dataset.episodes) != 1 or str(dataset.episodes[0].episode_id) != str(episode["episode_id"]):
-            raise ValueError("native dataset did not retain the selected R2R episode")
+            raise ValueError("native dataset did not retain the selected VLN-CE episode")
         return habitat.Env(config=config, dataset=dataset)
 
     def advance(self, action):
