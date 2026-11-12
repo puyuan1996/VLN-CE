@@ -97,7 +97,7 @@ def main(argv=None):
             if not args.conda:
                 raise ValueError("Provide --conda /path/to/conda")
             run([args.conda, "create", "-y", "-p", prefix, "--override-channels", "-c", "aihabitat",
-                 "-c", "conda-forge", "python=3.6", "habitat-sim=0.1.7", "headless", "libopengl", "pip", "cmake<4"], args.dry_run)
+                 "-c", "conda-forge", "python=3.6", "habitat-sim=0.1.7=py3.6_headless_linux_*", "headless", "libopengl", "pip", "cmake<4"], args.dry_run)
             managed = {"installed": False}
             if not args.dry_run:
                 save(receipt, managed)
